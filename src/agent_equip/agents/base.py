@@ -55,7 +55,7 @@ class AgentAdapter(ABC):
 
     def render(self, channel: Channel) -> str:
         """Skill content for this agent; default is the bundled SKILL.md verbatim."""
-        return channel.skill_source().read_text(encoding="utf-8")
+        return channel.skill_source().read_text(encoding="utf-8").replace("\r\n", "\n")
 
     def install_skill(self, channel: Channel) -> InstallResult:
         target = self.skill_target(channel)

@@ -20,4 +20,5 @@ class CursorAdapter(AgentAdapter):
 
     def render(self, channel: Channel) -> str:
         body = strip_frontmatter(super().render(channel))
-        return f"---\ndescription: {channel.description}\nalwaysApply: false\n---\n\n{body}"
+        safe_desc = channel.description.replace("'", "''")
+        return f"---\ndescription: '{safe_desc}'\nalwaysApply: false\n---\n\n{body}"

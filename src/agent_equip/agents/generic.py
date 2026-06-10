@@ -14,6 +14,19 @@ def _end(channel_name: str) -> str:
     return f"<!-- agent-equip:{channel_name}:end -->"
 
 
+def _block_span(text: str, start: str, end: str) -> tuple[int, int] | None:
+    """(start, stop) indices of a well-formed marked block, else None.
+
+    Malformed states (missing or inverted markers) return None so callers
+    fall back to appending or leaving the file untouched instead of crashing.
+    """
+    start_idx = text.find(start)
+    end_idx = text.find(end)
+    if start_idx == -1 or end_idx == -1 or end_idx < start_idx:
+        return None
+    return start_idx, end_idx + len(end)
+
+
 class GenericAdapter(AgentAdapter):
     """Maintains a marked block inside the project's AGENTS.md. Opt-in only."""
 
@@ -28,9 +41,7 @@ class GenericAdapter(AgentAdapter):
         return self.cwd / "AGENTS.md"
 
     def _block(self, channel: Channel) -> str:
-        body = strip_frontmatter(
-            channel.skill_source().read_text(encoding="utf-8")
-        ).rstrip()
+        body = strip_frontmatter(self.render(channel)).rstrip()
         return f"{_start(channel.name)}\n{body}\n{_end(channel.name)}"
 
     def install_skill(self, channel: Channel) -> InstallResult:
@@ -42,10 +53,10 @@ class GenericAdapter(AgentAdapter):
             target.write_text(block + "\n", encoding="utf-8")
             return InstallResult(self.name, target, "installed")
         text = target.read_text(encoding="utf-8")
-        if start in text and end in text:
-            pre, rest = text.split(start, 1)
-            _, post = rest.split(end, 1)
-            new = f"{pre}{block}{post}"
+        span = _block_span(text, start, end)
+        if span is not None:
+            start_idx, end_idx = span
+            new = f"{text[:start_idx]}{block}{text[end_idx:]}"
             if new == text:
                 return InstallResult(self.name, target, "skipped")
             target.write_text(new, encoding="utf-8")
@@ -62,10 +73,11 @@ class GenericAdapter(AgentAdapter):
             return
         start, end = _start(channel_name), _end(channel_name)
         text = path.read_text(encoding="utf-8")
-        if start not in text or end not in text:
+        span = _block_span(text, start, end)
+        if span is None:
             return
-        pre, rest = text.split(start, 1)
-        _, post = rest.split(end, 1)
+        start_idx, end_idx = span
+        pre, post = text[:start_idx], text[end_idx:]
         cleaned = (pre.rstrip() + "\n" + post.lstrip("\n")).strip()
         if cleaned:
             path.write_text(cleaned + "\n", encoding="utf-8")

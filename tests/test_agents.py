@@ -2,6 +2,10 @@ import pytest
 from pathlib import Path
 
 from agent_equip.agents.base import AgentAdapter, InstallResult, strip_frontmatter
+from agent_equip.agents.claude_code import ClaudeCodeAdapter
+from agent_equip.agents.cursor import CursorAdapter
+from agent_equip.agents.generic import GenericAdapter
+from agent_equip.agents.windsurf import WindsurfAdapter
 from agent_equip.channels.base import Channel, CheckResult
 
 
@@ -84,9 +88,6 @@ def test_uninstall_skill_tolerates_missing_file(tmp_path):
     ad.uninstall_skill(ch)  # must not raise
 
 
-from agent_equip.agents.claude_code import ClaudeCodeAdapter
-
-
 def test_claude_code_detect(tmp_path):
     ad = ClaudeCodeAdapter(home=tmp_path, cwd=tmp_path)
     assert ad.detect() is False
@@ -109,9 +110,6 @@ def test_claude_code_install_target_and_content(tmp_path):
     assert result.path.read_text(encoding="utf-8").startswith("---\nname: fake")
 
 
-from agent_equip.agents.cursor import CursorAdapter
-
-
 def test_cursor_detect_against_cwd(tmp_path):
     proj = tmp_path / "proj"
     proj.mkdir()
@@ -129,12 +127,9 @@ def test_cursor_renders_mdc_with_own_frontmatter(tmp_path):
     result = ad.install_skill(ch)
     assert result.path == proj / ".cursor" / "rules" / "fake.mdc"
     text = result.path.read_text(encoding="utf-8")
-    assert text.startswith("---\ndescription: fake channel\nalwaysApply: false\n---\n")
+    assert text.startswith("---\ndescription: 'fake channel'\nalwaysApply: false\n---\n")
     assert "# Fake skill" in text
     assert "name: fake" not in text  # original frontmatter stripped
-
-
-from agent_equip.agents.windsurf import WindsurfAdapter
 
 
 def test_windsurf_detect_and_target(tmp_path):
@@ -147,9 +142,6 @@ def test_windsurf_detect_and_target(tmp_path):
     assert result.path == proj / ".windsurf" / "rules" / "fake.md"
     text = result.path.read_text(encoding="utf-8")
     assert text.startswith("# Fake skill")  # frontmatter stripped, plain markdown
-
-
-from agent_equip.agents.generic import GenericAdapter
 
 
 def _generic(tmp_path):
@@ -222,6 +214,65 @@ def test_adapter_subclass_requires_name_and_scope():
         class BadScope(AgentAdapter):
             name = "bad"
             scope = "machine"  # invalid
+
+            def detect(self):
+                return True
+
+            def skill_target(self, channel):
+                return Path("x")
+
+
+# Fix 1: GenericAdapter tolerates inverted markers
+def test_generic_install_tolerates_inverted_markers(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    (proj / "AGENTS.md").write_text(
+        "<!-- agent-equip:fake:end -->\njunk\n<!-- agent-equip:fake:start -->\n",
+        encoding="utf-8",
+    )
+    result = ad.install_skill(ch)  # must not raise
+    assert result.action == "installed"
+    text = (proj / "AGENTS.md").read_text(encoding="utf-8")
+    assert "# Fake skill" in text
+
+
+def test_generic_remove_block_tolerates_inverted_markers(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    content = "<!-- agent-equip:fake:end -->\njunk\n<!-- agent-equip:fake:start -->\n"
+    (proj / "AGENTS.md").write_text(content, encoding="utf-8")
+    ad.uninstall_skill(ch)  # must not raise
+    assert (proj / "AGENTS.md").read_text(encoding="utf-8") == content  # untouched
+
+
+# Fix 2: CursorAdapter quotes description containing a colon
+def test_cursor_render_quotes_description_with_colon(tmp_path):
+    proj = tmp_path / "proj"
+    (proj / ".cursor").mkdir(parents=True)
+    ch = make_channel(tmp_path)
+    ch.description = "Manages tasks: issues, PRs"
+    ad = CursorAdapter(home=tmp_path, cwd=proj)
+    text = ad.install_skill(ch).path.read_text(encoding="utf-8")
+    assert "description: 'Manages tasks: issues, PRs'" in text
+
+
+# Fix 3: render() normalizes CRLF line endings
+def test_render_normalizes_crlf(tmp_path):
+    ch = make_channel(tmp_path, body="---\r\nname: fake\r\n---\r\n\r\n# CRLF skill\r\n")
+    proj = tmp_path / "proj"
+    (proj / ".windsurf").mkdir(parents=True)
+    ad = WindsurfAdapter(home=tmp_path, cwd=proj)
+    text = ad.install_skill(ch).path.read_text(encoding="utf-8")
+    assert text.startswith("# CRLF skill")
+    assert "\r" not in text
+
+
+# Fix 4: missing-name adapter test
+def test_adapter_subclass_requires_name():
+    with pytest.raises(TypeError, match="name"):
+
+        class NoNameAdapter(AgentAdapter):
+            scope = "project"
 
             def detect(self):
                 return True
