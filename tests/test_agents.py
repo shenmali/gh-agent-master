@@ -134,6 +134,21 @@ def test_cursor_renders_mdc_with_own_frontmatter(tmp_path):
     assert "name: fake" not in text  # original frontmatter stripped
 
 
+from agent_equip.agents.windsurf import WindsurfAdapter
+
+
+def test_windsurf_detect_and_target(tmp_path):
+    proj = tmp_path / "proj"
+    (proj / ".windsurf").mkdir(parents=True)
+    ch = make_channel(tmp_path)
+    ad = WindsurfAdapter(home=tmp_path, cwd=proj)
+    assert ad.detect() is True
+    result = ad.install_skill(ch)
+    assert result.path == proj / ".windsurf" / "rules" / "fake.md"
+    text = result.path.read_text(encoding="utf-8")
+    assert text.startswith("# Fake skill")  # frontmatter stripped, plain markdown
+
+
 def test_adapter_subclass_requires_name_and_scope():
     with pytest.raises(TypeError, match="scope"):
 
