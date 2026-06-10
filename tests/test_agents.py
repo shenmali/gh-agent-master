@@ -84,6 +84,31 @@ def test_uninstall_skill_tolerates_missing_file(tmp_path):
     ad.uninstall_skill(ch)  # must not raise
 
 
+from agent_equip.agents.claude_code import ClaudeCodeAdapter
+
+
+def test_claude_code_detect(tmp_path):
+    ad = ClaudeCodeAdapter(home=tmp_path, cwd=tmp_path)
+    assert ad.detect() is False
+    (tmp_path / ".claude").mkdir()
+    assert ad.detect() is True
+
+
+def test_claude_code_is_global_scope_and_auto():
+    assert ClaudeCodeAdapter.scope == "global"
+    assert ClaudeCodeAdapter.auto is True
+
+
+def test_claude_code_install_target_and_content(tmp_path):
+    (tmp_path / ".claude").mkdir()
+    ch = make_channel(tmp_path)
+    ad = ClaudeCodeAdapter(home=tmp_path, cwd=tmp_path)
+    result = ad.install_skill(ch)
+    assert result.path == tmp_path / ".claude" / "skills" / "fake" / "SKILL.md"
+    # Claude Code keeps the original frontmatter
+    assert result.path.read_text(encoding="utf-8").startswith("---\nname: fake")
+
+
 def test_adapter_subclass_requires_name_and_scope():
     with pytest.raises(TypeError, match="scope"):
 
