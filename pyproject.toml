@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Set up GitHub superpowers for any AI coding agent in one command."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [{ name = "shenmali" }]
 dependencies = ["typer>=0.12"]
