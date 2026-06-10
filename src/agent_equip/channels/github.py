@@ -9,7 +9,7 @@ from .base import Channel, CheckResult
 
 _INSTALL_HINTS = {
     "Darwin": "brew install gh",
-    "Linux": "sudo apt install gh  (or see https://cli.github.com)",
+    "Linux": "sudo apt install gh (Debian 12+/Ubuntu 23.04+; other distros: https://cli.github.com)",
     "Windows": "winget install --id GitHub.cli",
 }
 

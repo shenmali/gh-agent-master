@@ -23,6 +23,14 @@ class Channel(ABC):
     name: str
     description: str
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        for attr in ("name", "description"):
+            if not isinstance(getattr(cls, attr, None), str):
+                raise TypeError(
+                    f"{cls.__name__} must define a string class attribute {attr!r}"
+                )
+
     @abstractmethod
     def check(self) -> CheckResult:
         """Report whether this channel's upstream tooling is ready."""

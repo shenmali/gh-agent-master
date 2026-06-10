@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -84,3 +85,26 @@ def test_github_skill_source_exists():
     assert src.is_file()
     assert src.name == "SKILL.md"
     assert "gh " in src.read_text(encoding="utf-8")
+
+
+def test_channel_subclass_requires_name_and_description():
+    with pytest.raises(TypeError, match="name"):
+
+        class NoName(Channel):  # noqa: F811 - intentionally incomplete
+            description = "missing name"
+
+            def check(self):
+                return CheckResult("ok", "fine")
+
+            def skill_source(self):
+                return Path("x")
+
+
+def test_github_check_warn_on_oserror(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("agent_equip.channels.github.shutil.which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr("agent_equip.channels.github.subprocess.run", boom)
+    res = GitHubChannel().check()
+    assert res.status == "warn"
