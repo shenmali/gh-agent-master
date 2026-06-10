@@ -166,3 +166,40 @@ def test_uninstall_with_nothing_installed(monkeypatch, tmp_path):
     result = runner.invoke(app, ["uninstall"])
     assert result.exit_code == 0
     assert "Nothing to uninstall" in result.output
+
+
+def test_doctor_marks_missing_skill_files(monkeypatch, tmp_path):
+    home, _ = use_stub(monkeypatch, tmp_path)
+    (home / ".claude").mkdir()
+    runner.invoke(app, ["install", "github"])
+    (home / ".claude" / "skills" / "github" / "SKILL.md").unlink()
+    result = runner.invoke(app, ["doctor"])
+    assert "(MISSING)" in result.output
+
+
+def test_uninstall_reports_already_gone_entries(monkeypatch, tmp_path):
+    home, _ = use_stub(monkeypatch, tmp_path)
+    (home / ".claude").mkdir()
+    runner.invoke(app, ["install", "github"])
+    (home / ".claude" / "skills" / "github" / "SKILL.md").unlink()
+    result = runner.invoke(app, ["uninstall"])
+    assert result.exit_code == 0
+    assert "skipped (already gone)" in result.output
+    assert not (home / ".agent-equip").exists()
+
+
+def test_install_auto_runs_fix_and_recovers(monkeypatch, tmp_path):
+    home, _ = use_stub(monkeypatch, tmp_path, status="fail")
+    (home / ".claude").mkdir()
+    stub = registry.CHANNELS["github"]
+    ran = []
+
+    def fake_run(cmd, **kwargs):
+        ran.append(cmd)
+        stub._status = "ok"  # the fix command "repairs" the channel
+
+    monkeypatch.setattr("agent_equip.cli.subprocess.run", fake_run)
+    result = runner.invoke(app, ["install", "github", "--auto"])
+    assert ran == ["brew install gh"]
+    assert result.exit_code == 0
+    assert (home / ".claude" / "skills" / "github" / "SKILL.md").is_file()

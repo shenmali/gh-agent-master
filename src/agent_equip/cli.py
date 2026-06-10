@@ -53,7 +53,8 @@ def doctor() -> None:
     if entries:
         typer.echo("Installed skills:")
         for e in entries:
-            typer.echo(f"  {e.channel} -> {e.agent} ({e.path})")
+            marker = "" if Path(e.path).exists() else " (MISSING)"
+            typer.echo(f"  {e.channel} -> {e.agent} ({e.path}){marker}")
     raise typer.Exit(code=worst)
 
 
@@ -129,5 +130,7 @@ def uninstall() -> None:
         elif p.exists():
             p.unlink()
             typer.echo(f"removed: {p}")
+        else:
+            typer.echo(f"skipped (already gone): {p}")
     manifest.clear()
     typer.echo("Manifest cleared. agent-equip leftovers: none.")
