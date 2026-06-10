@@ -1,6 +1,10 @@
+import subprocess
+from types import SimpleNamespace
+
 import pytest
 
 from agent_equip.channels.base import Channel, CheckResult
+from agent_equip.channels.github import GitHubChannel, gh_install_hint
 
 
 def test_check_result_defaults():
@@ -35,3 +39,48 @@ def test_channel_subclass_contract(tmp_path):
     assert ch.name == "dummy"
     assert ch.check().status == "ok"
     assert ch.skill_source().name == "SKILL.md"
+
+
+def test_github_check_fail_when_gh_missing(monkeypatch):
+    monkeypatch.setattr("agent_equip.channels.github.shutil.which", lambda _: None)
+    res = GitHubChannel().check()
+    assert res.status == "fail"
+    assert res.fix_hint == gh_install_hint()
+
+
+def test_github_check_ok_when_authenticated(monkeypatch):
+    monkeypatch.setattr("agent_equip.channels.github.shutil.which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr(
+        "agent_equip.channels.github.subprocess.run",
+        lambda *a, **k: SimpleNamespace(returncode=0),
+    )
+    res = GitHubChannel().check()
+    assert res.status == "ok"
+
+
+def test_github_check_warn_when_not_authenticated(monkeypatch):
+    monkeypatch.setattr("agent_equip.channels.github.shutil.which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr(
+        "agent_equip.channels.github.subprocess.run",
+        lambda *a, **k: SimpleNamespace(returncode=1),
+    )
+    res = GitHubChannel().check()
+    assert res.status == "warn"
+    assert "gh auth login" in (res.fix_hint or "")
+
+
+def test_github_check_warn_on_timeout(monkeypatch):
+    def boom(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="gh", timeout=5)
+
+    monkeypatch.setattr("agent_equip.channels.github.shutil.which", lambda _: "/usr/bin/gh")
+    monkeypatch.setattr("agent_equip.channels.github.subprocess.run", boom)
+    res = GitHubChannel().check()
+    assert res.status == "warn"
+
+
+def test_github_skill_source_exists():
+    src = GitHubChannel().skill_source()
+    assert src.is_file()
+    assert src.name == "SKILL.md"
+    assert "gh " in src.read_text(encoding="utf-8")
