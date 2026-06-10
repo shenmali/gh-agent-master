@@ -129,6 +129,9 @@ def uninstall() -> None:
             typer.echo(f"removed: {e.channel} block from {p}")
         elif p.exists():
             p.unlink()
+            parent = p.parent
+            if parent.exists() and not any(parent.iterdir()):
+                parent.rmdir()
             typer.echo(f"removed: {p}")
         else:
             typer.echo(f"skipped (already gone): {p}")

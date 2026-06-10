@@ -203,3 +203,15 @@ def test_install_auto_runs_fix_and_recovers(monkeypatch, tmp_path):
     assert ran == ["brew install gh"]
     assert result.exit_code == 0
     assert (home / ".claude" / "skills" / "github" / "SKILL.md").is_file()
+
+
+def test_uninstall_removes_empty_parent_dir(monkeypatch, tmp_path):
+    home, _ = use_stub(monkeypatch, tmp_path)
+    (home / ".claude").mkdir()
+    runner.invoke(app, ["install", "github"])
+    skill_dir = home / ".claude" / "skills" / "github"
+    assert skill_dir.is_dir()
+    result = runner.invoke(app, ["uninstall"])
+    assert result.exit_code == 0
+    assert not skill_dir.exists()  # empty dir cleaned up too
+    assert (home / ".claude" / "skills").exists()  # but not the shared parent
