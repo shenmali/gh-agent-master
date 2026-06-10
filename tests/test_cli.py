@@ -136,3 +136,33 @@ def test_install_specific_agent_undetected_exits_two(monkeypatch, tmp_path):
     result = runner.invoke(app, ["install", "github", "--agent", "claude-code"])
     assert result.exit_code == 2
     assert "not detected" in result.output
+
+
+def test_uninstall_removes_files_and_manifest(monkeypatch, tmp_path):
+    home, cwd = use_stub(monkeypatch, tmp_path)
+    (home / ".claude").mkdir()
+    runner.invoke(app, ["install", "github"])
+    skill = home / ".claude" / "skills" / "github" / "SKILL.md"
+    assert skill.is_file()
+    result = runner.invoke(app, ["uninstall"])
+    assert result.exit_code == 0
+    assert not skill.exists()
+    assert not (home / ".agent-equip").exists()
+
+
+def test_uninstall_removes_generic_block_but_keeps_user_content(monkeypatch, tmp_path):
+    _, cwd = use_stub(monkeypatch, tmp_path)
+    (cwd / "AGENTS.md").write_text("# Keep me\n", encoding="utf-8")
+    runner.invoke(app, ["install", "github", "--agent", "generic"])
+    result = runner.invoke(app, ["uninstall"])
+    assert result.exit_code == 0
+    text = (cwd / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Keep me" in text
+    assert "agent-equip" not in text
+
+
+def test_uninstall_with_nothing_installed(monkeypatch, tmp_path):
+    use_stub(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["uninstall"])
+    assert result.exit_code == 0
+    assert "Nothing to uninstall" in result.output
