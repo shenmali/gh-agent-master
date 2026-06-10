@@ -149,6 +149,73 @@ def test_windsurf_detect_and_target(tmp_path):
     assert text.startswith("# Fake skill")  # frontmatter stripped, plain markdown
 
 
+from agent_equip.agents.generic import GenericAdapter
+
+
+def _generic(tmp_path):
+    proj = tmp_path / "proj"
+    proj.mkdir(exist_ok=True)
+    return GenericAdapter(home=tmp_path, cwd=proj), proj
+
+
+def test_generic_is_opt_in_but_detects_true():
+    assert GenericAdapter.auto is False
+    assert GenericAdapter(home=Path("/x"), cwd=Path("/y")).detect() is True
+
+
+def test_generic_creates_agents_md_with_marked_block(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    result = ad.install_skill(ch)
+    assert result.action == "installed"
+    text = (proj / "AGENTS.md").read_text(encoding="utf-8")
+    assert text.startswith("<!-- agent-equip:fake:start -->")
+    assert "# Fake skill" in text
+    assert text.rstrip().endswith("<!-- agent-equip:fake:end -->")
+
+
+def test_generic_appends_to_existing_agents_md(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    (proj / "AGENTS.md").write_text("# My project notes\n", encoding="utf-8")
+    result = ad.install_skill(ch)
+    assert result.action == "installed"
+    text = (proj / "AGENTS.md").read_text(encoding="utf-8")
+    assert text.startswith("# My project notes")
+    assert "<!-- agent-equip:fake:start -->" in text
+
+
+def test_generic_replaces_existing_block_idempotently(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    ad.install_skill(ch)
+    assert ad.install_skill(ch).action == "skipped"
+    ch.skill_source().write_text("---\nname: fake\n---\n\n# Updated body\n", encoding="utf-8")
+    assert ad.install_skill(ch).action == "updated"
+    text = (proj / "AGENTS.md").read_text(encoding="utf-8")
+    assert "# Updated body" in text
+    assert text.count("<!-- agent-equip:fake:start -->") == 1
+
+
+def test_generic_uninstall_removes_only_the_block(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    (proj / "AGENTS.md").write_text("# Keep me\n", encoding="utf-8")
+    ad.install_skill(ch)
+    ad.uninstall_skill(ch)
+    text = (proj / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Keep me" in text
+    assert "agent-equip:fake" not in text
+
+
+def test_generic_uninstall_deletes_file_if_block_was_everything(tmp_path):
+    ch = make_channel(tmp_path)
+    ad, proj = _generic(tmp_path)
+    ad.install_skill(ch)
+    ad.uninstall_skill(ch)
+    assert not (proj / "AGENTS.md").exists()
+
+
 def test_adapter_subclass_requires_name_and_scope():
     with pytest.raises(TypeError, match="scope"):
 
