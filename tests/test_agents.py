@@ -109,6 +109,31 @@ def test_claude_code_install_target_and_content(tmp_path):
     assert result.path.read_text(encoding="utf-8").startswith("---\nname: fake")
 
 
+from agent_equip.agents.cursor import CursorAdapter
+
+
+def test_cursor_detect_against_cwd(tmp_path):
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    ad = CursorAdapter(home=tmp_path, cwd=proj)
+    assert ad.detect() is False
+    (proj / ".cursor").mkdir()
+    assert ad.detect() is True
+
+
+def test_cursor_renders_mdc_with_own_frontmatter(tmp_path):
+    proj = tmp_path / "proj"
+    (proj / ".cursor").mkdir(parents=True)
+    ch = make_channel(tmp_path)
+    ad = CursorAdapter(home=tmp_path, cwd=proj)
+    result = ad.install_skill(ch)
+    assert result.path == proj / ".cursor" / "rules" / "fake.mdc"
+    text = result.path.read_text(encoding="utf-8")
+    assert text.startswith("---\ndescription: fake channel\nalwaysApply: false\n---\n")
+    assert "# Fake skill" in text
+    assert "name: fake" not in text  # original frontmatter stripped
+
+
 def test_adapter_subclass_requires_name_and_scope():
     with pytest.raises(TypeError, match="scope"):
 
