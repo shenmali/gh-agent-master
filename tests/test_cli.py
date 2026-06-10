@@ -70,3 +70,69 @@ def test_doctor_fail_exit_two(monkeypatch, tmp_path):
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 2
     assert "[x] github" in result.output
+
+
+def test_install_into_detected_agents(monkeypatch, tmp_path):
+    home, cwd = use_stub(monkeypatch, tmp_path, status="ok")
+    (home / ".claude").mkdir()
+    (cwd / ".cursor").mkdir()
+    result = runner.invoke(app, ["install", "github"])
+    assert result.exit_code == 0
+    assert (home / ".claude" / "skills" / "github" / "SKILL.md").is_file()
+    assert (cwd / ".cursor" / "rules" / "github.mdc").is_file()
+    # windsurf not detected -> not installed
+    assert not (cwd / ".windsurf").exists()
+    # manifest recorded under home
+    assert (home / ".agent-equip" / "manifest.json").is_file()
+    assert "installed" in result.output
+
+
+def test_install_unknown_channel_exits_two(monkeypatch, tmp_path):
+    use_stub(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["install", "nope"])
+    assert result.exit_code == 2
+    assert "unknown channel" in result.output
+
+
+def test_install_fail_status_prints_hint_and_exits_two(monkeypatch, tmp_path):
+    use_stub(monkeypatch, tmp_path, status="fail")
+    result = runner.invoke(app, ["install", "github"])
+    assert result.exit_code == 2
+    assert "brew install gh" in result.output
+
+
+def test_install_warn_status_still_installs(monkeypatch, tmp_path):
+    home, _ = use_stub(monkeypatch, tmp_path, status="warn")
+    (home / ".claude").mkdir()
+    result = runner.invoke(app, ["install", "github"])
+    assert result.exit_code == 0
+    assert (home / ".claude" / "skills" / "github" / "SKILL.md").is_file()
+    assert "gh auth login" in result.output
+
+
+def test_install_no_agents_detected_exits_one(monkeypatch, tmp_path):
+    use_stub(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["install", "github"])
+    assert result.exit_code == 1
+    assert "No agents detected" in result.output
+
+
+def test_install_specific_agent_generic(monkeypatch, tmp_path):
+    _, cwd = use_stub(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["install", "github", "--agent", "generic"])
+    assert result.exit_code == 0
+    assert (cwd / "AGENTS.md").is_file()
+
+
+def test_install_specific_agent_unknown_exits_two(monkeypatch, tmp_path):
+    use_stub(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["install", "github", "--agent", "nope"])
+    assert result.exit_code == 2
+    assert "unknown agent" in result.output
+
+
+def test_install_specific_agent_undetected_exits_two(monkeypatch, tmp_path):
+    use_stub(monkeypatch, tmp_path)  # no .claude dir created
+    result = runner.invoke(app, ["install", "github", "--agent", "claude-code"])
+    assert result.exit_code == 2
+    assert "not detected" in result.output
