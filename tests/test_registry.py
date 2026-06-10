@@ -13,7 +13,7 @@ def test_get_channel_known():
 
 
 def test_get_channel_unknown_raises_with_available_list():
-    with pytest.raises(KeyError, match="github"):
+    with pytest.raises(KeyError, match="nope"):
         registry.get_channel("nope")
 
 

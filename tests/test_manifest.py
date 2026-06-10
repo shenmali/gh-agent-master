@@ -27,3 +27,13 @@ def test_clear_removes_manifest_and_empty_dir(tmp_path):
     manifest.clear(root=tmp_path)
     assert not (tmp_path / ".agent-equip").exists()
     assert manifest.load(root=tmp_path) == []
+
+
+def test_load_exits_cleanly_on_corrupt_manifest(tmp_path):
+    p = tmp_path / ".agent-equip" / "manifest.json"
+    p.parent.mkdir(parents=True)
+    p.write_text("{not json", encoding="utf-8")
+    import pytest
+
+    with pytest.raises(SystemExit, match="corrupt"):
+        manifest.load(root=tmp_path)
